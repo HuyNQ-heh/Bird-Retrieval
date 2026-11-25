@@ -5,7 +5,7 @@ import numpy as np
 from skimage.feature import local_binary_pattern
 from skimage.measure import perimeter_crofton
 
-from masking import validate_rgb
+from indexing.masking import validate_rgb
 
 
 def _hist(values, bins):

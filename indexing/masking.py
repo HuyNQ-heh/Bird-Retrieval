@@ -13,7 +13,7 @@ import numpy as np
 import onnxruntime as ort
 
 
-MODEL_DIR = Path(__file__).resolve().parent / "models"
+MODEL_DIR = Path(__file__).resolve().parents[1] / "models"
 _SSD_URL = "https://raw.githubusercontent.com/chuanqi305/MobileNet-SSD/master/"
 _FILES = {
     "deploy.prototxt": (_SSD_URL + "deploy.prototxt",

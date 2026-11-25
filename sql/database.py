@@ -10,7 +10,7 @@ import numpy as np
 import pymysql
 
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
 SELECT_FEATURES = """
     SELECT i.image_id, i.image_path, i.mask_path, f.color_feature, f.texture_feature, f.shape_feature
     FROM images i JOIN image_features f USING (image_id)
@@ -49,6 +49,39 @@ def register(conn, path, species):
                        ON DUPLICATE KEY UPDATE image_id=LAST_INSERT_ID(image_id), species=%s""",
                     (path, species, species))
         return cur.lastrowid
+
+
+def read_gallery():
+    """Read all registered images, retaining missing/invalid rows for the audit."""
+    from search.retrieval import GROUPS, join_features
+
+    try:
+        with connect() as conn, conn.cursor() as cur:
+            cur.execute("""SELECT i.image_id, i.image_path, i.species,
+                                 f.color_feature, f.texture_feature, f.shape_feature
+                          FROM images i LEFT JOIN image_features f USING (image_id)
+                          ORDER BY i.image_id""")
+            rows = cur.fetchall()
+    except pymysql.MySQLError as exc:
+        code = exc.args[0] if exc.args and isinstance(exc.args[0], int) else "unknown"
+        raise RuntimeError(f"Cannot read gallery (MySQL {code}). Check .env, server and SELECT access.") from None
+    records, rejected = {}, []
+    for image_id, path, species, *columns in rows:
+        try:
+            parts = []
+            for (group, _), value in zip(GROUPS, columns):
+                if value is None:
+                    raise ValueError(f"{group}: missing JSON vector")
+                part = json.loads(value)
+                if not isinstance(part, list) or any(type(v) not in (int, float) for v in part):
+                    raise ValueError(f"{group}: expected a JSON array of numbers")
+                parts.append(part)
+            vector = join_features(parts)
+        except (TypeError, ValueError, OverflowError) as exc:
+            rejected.append(dict(image_id=image_id, image_path=path, reason=str(exc)))
+            continue
+        records[image_id] = (path, species, vector)
+    return records, rejected
 
 
 def publish(conn, image_id, mask_path, features):

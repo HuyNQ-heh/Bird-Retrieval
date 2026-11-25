@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from features import extract_features
+from indexing.features import extract_features
 
 
 class FeatureContract(unittest.TestCase):
